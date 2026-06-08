@@ -30,7 +30,7 @@ async def home():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
-# Shared memory spaces
+
 MODEL = ChatGroq(model="qwen/qwen3-32b", reasoning_format="parsed")
 EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -38,7 +38,7 @@ VECTOR_STORE = None
 AGENT = None
 CHAT_HISTORY = []
 
-# Define standard storage path inside the new backend/documents folder
+
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "documents")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -49,7 +49,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
     
-    # Save file inside our dedicated backend/documents folder
+
     file_path = os.path.join(UPLOAD_DIR, file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -84,7 +84,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # Clean up file after ingestion
+
         if os.path.exists(file_path):
             os.remove(file_path)
 
