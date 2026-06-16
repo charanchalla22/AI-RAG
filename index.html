@@ -3,291 +3,498 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PDF RAG Chatbot</title>
+<title>RAG PDF Chatbot</title>
 
 <style>
+
 *{
     margin:0;
     padding:0;
     box-sizing:border-box;
-    font-family:Arial, sans-serif;
+    font-family:Segoe UI,sans-serif;
 }
 
 body{
-    background:#f4f6f9;
     display:flex;
-    justify-content:center;
-    align-items:center;
     height:100vh;
+    background:#f4f6f9;
 }
 
-.container{
-    width:900px;
-    height:90vh;
-    background:white;
-    border-radius:12px;
-    box-shadow:0 0 10px rgba(0,0,0,0.2);
+#sidebar{
+    width:320px;
+    background:#202123;
+    color:white;
+    padding:15px;
     display:flex;
     flex-direction:column;
 }
 
-.header{
-    background:#2563eb;
-    color:white;
-    padding:15px;
-    text-align:center;
-    font-size:24px;
-    font-weight:bold;
-}
-
-.upload-section{
-    padding:15px;
-    border-bottom:1px solid #ddd;
-    display:flex;
-    gap:10px;
-}
-
-.upload-section input{
-    flex:1;
-}
-
-button{
-    background:#2563eb;
+#newChatBtn{
+    width:100%;
+    padding:10px;
+    background:#10a37f;
     color:white;
     border:none;
-    padding:10px 15px;
-    border-radius:6px;
+    border-radius:5px;
+    margin-bottom:15px;
     cursor:pointer;
 }
 
-button:hover{
-    background:#1e4ed8;
-}
-
-#status{
-    padding:10px;
-    color:green;
-    font-weight:bold;
-}
-
-.chat-box{
+#historyList{
     flex:1;
     overflow-y:auto;
-    padding:15px;
-    background:#f9fafb;
+    margin-bottom:20px;
+}
+
+.chatItem{
+    padding:10px;
+    margin-bottom:5px;
+    border-radius:5px;
+    cursor:pointer;
+    background:#2d2f39;
+}
+
+.chatItem:hover{
+    background:#3d3f49;
+}
+
+#chat-container{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+}
+
+#messages{
+    flex:1;
+    overflow-y:auto;
+    padding:20px;
 }
 
 .message{
+    padding:12px;
     margin:10px;
-    padding:12px 16px;
-    border-radius:12px;
-    max-width:85%;
-    line-height:1.6;
-    word-wrap:break-word;
-    overflow-wrap:break-word;
+    border-radius:8px;
+    max-width:70%;
     white-space:pre-wrap;
 }
 
 .user{
-    background:#dbeafe;
-    margin-left:auto;
-    text-align:left;
-}
-
-.bot{
-    background:#f3f4f6;
-    margin-right:auto;
-    text-align:left;
-    max-width:95%;
-}
-
-.bot h1,
-.bot h2,
-.bot h3,
-.bot h4{
-    margin-top:10px;
-    margin-bottom:8px;
-}
-
-.bot ul,
-.bot ol{
-    padding-left:25px;
-}
-
-.bot p{
-    margin-bottom:8px;
-}
-
-.user{
-    background:#dbeafe;
+    background:#007bff;
+    color:white;
     margin-left:auto;
 }
 
-.bot{
-    background:#e5e7eb;
+.assistant{
+    background:#e9ecef;
+    color:black;
 }
 
-.chat-input{
+#input-area{
     display:flex;
+    gap:10px;
     padding:15px;
-    border-top:1px solid #ddd;
+    border-top:1px solid #ccc;
+    background:white;
 }
 
-.chat-input input{
-    flex:1;
+input{
+    width:100%;
     padding:10px;
-    border:1px solid #ccc;
-    border-radius:6px;
 }
 
-.chat-input button{
-    margin-left:10px;
+button{
+    padding:10px 15px;
+    cursor:pointer;
 }
+
+.section{
+    margin-bottom:15px;
+}
+
 </style>
 </head>
 
 <body>
 
-<div class="container">
+<div id="sidebar">
 
-    <div class="header">
-        PDF RAG Chatbot
-    </div>
+<button id="newChatBtn" onclick="createNewChat()">
++ New Chat
+</button>
 
-    <div class="upload-section">
-        <input type="file" id="pdfFile" accept=".pdf">
-        <button onclick="uploadPDF()">Upload PDF</button>
-    </div>
+<div id="historyList"></div>
 
-    <div id="status"></div>
+<div class="section">
+<label>User ID</label>
+<input type="text" id="userId" value="user_999">
+</div>
 
-    <div id="chatBox" class="chat-box"></div>
+<div class="section">
+<label>Session ID</label>
+<input type="text" id="sessionId" readonly>
+</div>
 
-    <div class="chat-input">
-        <input type="text" id="question" placeholder="Ask a question...">
-        <button onclick="sendMessage()">Send</button>
-    </div>
+<div class="section">
+<label>Upload PDF</label>
+<input type="file" id="pdfFile" accept=".pdf">
+</div>
+
+<button onclick="uploadDocument()">
+Upload PDF
+</button>
+
+<br>
+
+<p id="uploadStatus"></p>
+
+</div>
+
+<div id="chat-container">
+
+<div id="messages"></div>
+
+<div id="input-area">
+
+<input
+type="text"
+id="queryInput"
+placeholder="Ask your PDF..."
+onkeypress="if(event.key==='Enter') sendMessage()">
+
+<button onclick="sendMessage()">
+Send
+</button>
+
+</div>
 
 </div>
 
 <script>
 
-const API_URL = "http://127.0.0.1:8000";
+window.onload = async () => {
 
-async function uploadPDF() {
+    let sessionId =
+    localStorage.getItem("session_id");
 
-    const fileInput = document.getElementById("pdfFile");
+    if(!sessionId){
 
-    if(fileInput.files.length === 0){
-        alert("Please select a PDF.");
+        const response =
+        await fetch("/new-session");
+
+        const data =
+        await response.json();
+
+        sessionId =
+        data.session_id;
+
+        localStorage.setItem(
+            "session_id",
+            sessionId
+        );
+    }
+
+    document.getElementById(
+        "sessionId"
+    ).value = sessionId;
+
+    await loadSessions();
+
+    await loadHistory();
+};
+
+async function createNewChat(){
+
+    const response =
+    await fetch("/new-session");
+
+    const data =
+    await response.json();
+
+    localStorage.setItem(
+        "session_id",
+        data.session_id
+    );
+
+    document.getElementById(
+        "sessionId"
+    ).value =
+    data.session_id;
+
+    document.getElementById(
+        "messages"
+    ).innerHTML="";
+
+    await loadSessions();
+}
+
+async function loadSessions(){
+
+    const userId =
+    document.getElementById(
+        "userId"
+    ).value;
+
+    const response =
+    await fetch(
+        `/sessions/${userId}`
+    );
+
+    if(!response.ok) return;
+
+    const sessions =
+    await response.json();
+
+    const historyDiv =
+    document.getElementById(
+        "historyList"
+    );
+
+    historyDiv.innerHTML="";
+
+    sessions.forEach(chat=>{
+
+        const div =
+        document.createElement("div");
+
+        div.className =
+        "chatItem";
+
+        div.innerText =
+        chat.title;
+
+        div.onclick = () =>
+        openSession(
+            chat.session_id
+        );
+
+        historyDiv.appendChild(div);
+    });
+}
+
+async function openSession(id){
+
+    localStorage.setItem(
+        "session_id",
+        id
+    );
+
+    document.getElementById(
+        "sessionId"
+    ).value=id;
+
+    const response =
+    await fetch(
+        `/history/${id}`
+    );
+
+    const history =
+    await response.json();
+
+    document.getElementById(
+        "messages"
+    ).innerHTML="";
+
+    history.forEach(msg=>{
+
+        appendMessage(
+            msg.content,
+            msg.role
+        );
+    });
+}
+
+async function uploadDocument(){
+
+    const fileInput =
+    document.getElementById(
+        "pdfFile"
+    );
+
+    const userId =
+    document.getElementById(
+        "userId"
+    ).value;
+
+    const status =
+    document.getElementById(
+        "uploadStatus"
+    );
+
+    if(!fileInput.files[0]){
+        alert("Select PDF");
         return;
     }
 
-    const formData = new FormData();
-    formData.append("file", fileInput.files[0]);
+    const formData =
+    new FormData();
 
-    try{
+    formData.append(
+        "file",
+        fileInput.files[0]
+    );
 
-        document.getElementById("status").innerText =
-        "Uploading and processing PDF...";
+    formData.append(
+        "user_id",
+        userId
+    );
 
-        const response = await fetch(
-            `${API_URL}/upload`,
-            {
-                method:"POST",
-                body:formData
-            }
-        );
+    status.innerText =
+    "Uploading...";
 
-        const data = await response.json();
+    const response =
+    await fetch(
+        "/upload",
+        {
+            method:"POST",
+            body:formData
+        }
+    );
 
-        document.getElementById("status").innerText =
-        data.message;
+    const data =
+    await response.json();
 
-    }
-    catch(error){
-
-        document.getElementById("status").innerText =
-        "Upload failed.";
-
-        console.error(error);
-    }
+    status.innerText =
+    data.message ||
+    data.detail;
 }
-
-function addMessage(text, type){
-
-    const chatBox = document.getElementById("chatBox");
-
-    const div = document.createElement("div");
-    div.classList.add("message");
-    div.classList.add(type);
-
-    div.innerHTML = text;
-
-    chatBox.appendChild(div);
-
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-
-
 
 async function sendMessage(){
 
-    const input = document.getElementById("question");
+    const text =
+    document.getElementById(
+        "queryInput"
+    ).value.trim();
 
-    const question = input.value.trim();
+    if(!text) return;
 
-    if(question === ""){
-        return;
-    }
+    const userId =
+    document.getElementById(
+        "userId"
+    ).value;
 
-    addMessage("<b>You:</b> " + question, "user");
+    const sessionId =
+    document.getElementById(
+        "sessionId"
+    ).value;
 
-    input.value = "";
+    appendMessage(
+        text,
+        "user"
+    );
 
-    const formData = new FormData();
-    formData.append("message", question);
+    document.getElementById(
+        "queryInput"
+    ).value="";
 
-    try{
+    const formData =
+    new FormData();
 
-        const response = await fetch(
-            `${API_URL}/chat`,
-            {
-                method:"POST",
-                body:formData
-            }
+    formData.append(
+        "message",
+        text
+    );
+
+    formData.append(
+        "user_id",
+        userId
+    );
+
+    formData.append(
+        "session_id",
+        sessionId
+    );
+
+    const response =
+    await fetch(
+        "/chat",
+        {
+            method:"POST",
+            body:formData
+        }
+    );
+
+    const data =
+    await response.json();
+
+    if(response.ok){
+
+        appendMessage(
+            data.response,
+            "assistant"
         );
 
-        const data = await response.json();
+        loadSessions();
 
-        addMessage(
-            "<b>Bot:</b> " + data.response,
-            "bot"
+    }else{
+
+        appendMessage(
+            data.detail,
+            "assistant"
         );
-
-    }
-    catch(error){
-
-        addMessage(
-            "<b>Bot:</b> Server error.",
-            "bot"
-        );
-
-        console.error(error);
     }
 }
 
-document.getElementById("question")
-.addEventListener("keypress", function(event){
+async function loadHistory(){
 
-    if(event.key === "Enter"){
-        sendMessage();
-    }
+    const sessionId =
+    document.getElementById(
+        "sessionId"
+    ).value;
 
-});
+    const response =
+    await fetch(
+        `/history/${sessionId}`
+    );
+
+    if(!response.ok)
+        return;
+
+    const history =
+    await response.json();
+
+    document.getElementById(
+        "messages"
+    ).innerHTML="";
+
+    history.forEach(msg=>{
+
+        appendMessage(
+            msg.content,
+            msg.role
+        );
+    });
+}
+
+function appendMessage(
+    text,
+    sender
+){
+
+    const messages =
+    document.getElementById(
+        "messages"
+    );
+
+    const div =
+    document.createElement(
+        "div"
+    );
+
+    div.className =
+    `message ${sender}`;
+
+    div.innerText =
+    text;
+
+    messages.appendChild(
+        div
+    );
+
+    messages.scrollTop =
+    messages.scrollHeight;
+}
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>
